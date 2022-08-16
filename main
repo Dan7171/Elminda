@@ -1,0 +1,44 @@
+from time import strftime
+import sklearn
+import pandas as pd
+import numpy as np
+import datetime as dt
+
+bna = pd.read_csv('BNA_data.csv')
+clinical = pd.read_csv('Clinical_data.csv')
+
+def reformat_dates(df): 
+    df['date'] = pd.to_datetime(df['date'], infer_datetime_format=True)
+    df['just_date'] = pd.to_datetime(df['date']).dt.date
+    newdate = dt.date(1998, 11, 8)
+    df['just_date'].replace({pd.NaT: newdate}, inplace=True)
+    df['just_date'] = df['just_date'].apply(lambda d: d.strftime("%d/%m/%Y"))
+    addcol = df.pop('just_date')
+    df.insert(2, 'just_date', addcol)
+    print(df)
+    
+def unite_same_day_visits_to_the_first(df): #FUNC1
+    #for a subject with more than one EEG recording in the same day, keep only the first one
+    #THIS IS ONLY FOR THE BNA DATA
+    df.groupby(['subject'])
+    subs = df['subject']
+    df.reset_index()
+    print("after groupby")
+    print(df)
+
+
+def final_date(df1, df2): #FUNC2
+    #create final_date column for each df to be used in the merge of the two 
+    #use a random t until Ofir gives us an answer
+    pass 
+
+reformat_dates(bna) 
+reformat_dates(clinical)
+#unite_same_day_visits_to_the_first(clinical) #implement 
+unite_same_day_visits_to_the_first(bna) #implement 
+
+final_date(bna, clinical) #implement
+visits = clinical.merge(bna, how = 'inner', on = ['final_date', 'subject']) #outer or inner? check it#
+print("after merge")
+print(visits)
+#MAYA: I would say inner on the subjects merge, if we don't have all the data on a sub it might interfere with the ML
