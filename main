@@ -1,11 +1,11 @@
 from time import strftime
-import sklearn
+#import sklearn
 import pandas as pd
 import numpy as np
 import datetime as dt
-
-bna = pd.read_csv('BNA_data.csv')
-clinical = pd.read_csv('Clinical_data.csv')
+import warnings
+warnings.simplefilter("ignore", UserWarning)
+#import the_module_that_warns
 
 def reformat_dates(df): 
     df['date'] = pd.to_datetime(df['date'], infer_datetime_format=True)
@@ -15,30 +15,56 @@ def reformat_dates(df):
     df['just_date'] = df['just_date'].apply(lambda d: d.strftime("%d/%m/%Y"))
     addcol = df.pop('just_date')
     df.insert(2, 'just_date', addcol)
-    print(df)
-    
+    #print(df)
+
+#for a subject with more than one EEG recording in the same day, keep only the first one
 def unite_same_day_visits_to_the_first(df): #FUNC1
-    #for a subject with more than one EEG recording in the same day, keep only the first one
-    #THIS IS ONLY FOR THE BNA DATA
-    df.groupby(['subject'])
-    subs = df['subject']
-    df.reset_index()
-    print("after groupby")
-    print(df)
+    
+    #print(" BEFORE sorting \n",df[['just_date','subject','date']])
+    df = df.sort_values(by=['subject','date'])
+    df = df.reset_index()
+    #print(" AFTER sorting \n",df[['just_date','subject','date']])
+    df = df.drop_duplicates(subset=['subject', 'just_date'], keep='first') #removes rows(visits) who has same subject with the same date, but leaves the first appearance
+    df = df.reset_index()
 
 
 def final_date(df1, df2): #FUNC2
     #create final_date column for each df to be used in the merge of the two 
     #use a random t until Ofir gives us an answer
-    pass 
+    t = 2 #t is the valid maximun difference in days
+    df = df1.merge(df2, how = 'inner',on = ['subject'])
+    #print("inner join = \n", df[['subject','just_date_x','just_date_y']])
+    #foo(x1,x2) df['just_date_x'] if dt.datetime.strptime(str(df['just_date_x']),'%d/%m/%y').date() - dt.date.strptime(str(df['just_date_y']),'%d/%m/%y').date()
+    df['final_date'] =[d1 if time_difference(d1,d2)<= t else "remove" for d1,d2 in zip(df['just_date_x'],df['just_date_y'])] 
+    df = df[df['final_date']!= 'remove']
+    df = df.reset_index()
+    print("with final date = \n", df[['subject','just_date_x','just_date_y','final_date']])
+    print("before duplicates dropping - subject 55 example \n" , df[df['subject'] == "sub55"][['subject','just_date_x','just_date_y','final_date']])
+    df = df.drop_duplicates(subset=['final_date','subject'], keep='first')
+    print("after duplicates dropping - subject 55 example\n" ,df[df['subject'] == "sub55"][['subject','just_date_x','just_date_y','final_date']])
+    df = df.reset_index()
+    #print("with final date, no duplicates in final date = \n", df[['subject','just_date_x','just_date_y','final_date']])
+    
+ 
+def time_difference(d1_str, d2_str): #v
+    #print(d1_str, d2_str)
+    d1 = dt.datetime.strptime(d1_str, "%d/%m/%Y")
+    d2 = dt.datetime.strptime(d2_str, "%d/%m/%Y")
+    delta = d2-d1
+    #print(d1,d2,delta)
+    difference = abs(delta.days)
+    #print(f'Difference is {difference} days')
+    return difference   
 
-reformat_dates(bna) 
+
+
+#*** MAIN PART : ***
+
+bna = pd.read_csv('BNA_data.csv')
+clinical = pd.read_csv('Clinical_data.csv')
+reformat_dates(bna)
 reformat_dates(clinical)
-#unite_same_day_visits_to_the_first(clinical) #implement 
-unite_same_day_visits_to_the_first(bna) #implement 
-
+unite_same_day_visits_to_the_first(bna) # for every subject, leaves in df just the first visit on a given day
 final_date(bna, clinical) #implement
-visits = clinical.merge(bna, how = 'inner', on = ['final_date', 'subject']) #outer or inner? check it#
-print("after merge")
-print(visits)
-#MAYA: I would say inner on the subjects merge, if we don't have all the data on a sub it might interfere with the ML
+visits = clinical.merge(bna, how = 'inner', on = ['just_date', 'subject']) 
+#print("final visits = \n",visits.head())
