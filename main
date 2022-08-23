@@ -16,7 +16,7 @@ def reformat_dates(df):
     df['just_date'] = df['just_date'].apply(lambda d: d.strftime("%d/%m/%Y"))
     addcol = df.pop('just_date')
     df.insert(2, 'just_date', addcol)
-    print(df)
+    #print(df)
 
 #for a subject with more than one EEG recording in the same day, keep only the first one
 def unite_same_day_visits_to_the_first(df): #FUNC1
