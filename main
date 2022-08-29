@@ -1,3 +1,4 @@
+from pathlib import Path
 from time import strftime
 #import sklearn
 import pandas as pd
@@ -39,10 +40,10 @@ def final_date(df1, df2): #FUNC2
     df['final_date'] =[d1 if time_difference(d1,d2)<= t else "remove" for d1,d2 in zip(df['just_date_x'],df['just_date_y'])] 
     df = df[df['final_date']!= 'remove']
     df = df.reset_index()
-    print("with final date = \n", df[['subject','just_date_x','just_date_y','final_date']])
-    print("before duplicates dropping - subject 55 example \n" , df[df['subject'] == "sub55"][['subject','just_date_x','just_date_y','final_date']])
+    #print("with final date = \n", df[['subject','just_date_x','just_date_y','final_date']])
+    #print("before duplicates dropping - subject 55 example \n" , df[df['subject'] == "sub55"][['subject','just_date_x','just_date_y','final_date']])
     df = df.drop_duplicates(subset=['final_date','subject'], keep='first')
-    print("after duplicates dropping - subject 55 example\n" ,df[df['subject'] == "sub55"][['subject','just_date_x','just_date_y','final_date']])
+    #print("after duplicates dropping - subject 55 example\n" ,df[df['subject'] == "sub55"][['subject','just_date_x','just_date_y','final_date']])
     df = df.reset_index()
     #print("with final date, no duplicates in final date = \n", df[['subject','just_date_x','just_date_y','final_date']])
     
@@ -57,7 +58,9 @@ def time_difference(d1_str, d2_str): #v
     #print(f'Difference is {difference} days')
     return difference   
 
-
+def save_df_to_csv(df):
+    path = Path()
+    df.to_csv('visits.csv',index = False)
 
 #*** MAIN PART : ***
 
@@ -68,6 +71,7 @@ reformat_dates(clinical)
 unite_same_day_visits_to_the_first(bna) # for every subject, leaves in df just the first visit on a given day
 final_date(bna, clinical) #implement
 visits = clinical.merge(bna, how = 'inner', on = ['just_date', 'subject']) 
+save_df_to_csv(visits)
 #print("final visits = \n",visits.head())
 
 #added this note to see if the push works 
