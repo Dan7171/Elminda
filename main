@@ -12,20 +12,21 @@ warnings.simplefilter("ignore", UserWarning)
 def reformat_dates(df): 
     df['date'] = pd.to_datetime(df['date'], infer_datetime_format=True)
     df['just_date'] = pd.to_datetime(df['date']).dt.date
+    newdate = dt.date(1998, 11, 8)
     df['just_date'].replace({pd.NaT: newdate}, inplace=True)
     df['just_date'] = df['just_date'].apply(lambda d: d.strftime("%d/%m/%Y"))
     addcol = df.pop('just_date')
     df.insert(2, 'just_date', addcol)
  
 #for a subject with more than one EEG recording in the same day, keep only the first one
-def unite_same_day_visits_to_the_first(df): #FUNC1
+def unite_same_day_visits_to_the_first(df):
     df = df.sort_values(by=['subject','date'])
     df = df.reset_index()
     df = df.drop_duplicates(subset=['subject', 'just_date'], keep='first') #removes rows(visits) who has same subject with the same date, but leaves the first appearance
     df = df.reset_index()
 
 
-def final_date(df1, df2): #FUNC2
+def final_date(df1, df2): 
     #create final_date column for each df to be used in the merge of the two 
     #use a random t until Ofir gives us an answer
     t = 2 #t is the valid maximun difference in days
@@ -51,7 +52,8 @@ def save_df_to_csv(df):
 #*** MAIN PART : ***
 
 bna = pd.read_csv('BNA_data.csv')
-clinical = pd.read_csv('Clinical_data.csv')
+clinical = pd.read_csv("Clinical_data.csv") #Hebrew is reversed in the dataframe
+print(clinical.columns)
 reformat_dates(bna)
 reformat_dates(clinical)
 unite_same_day_visits_to_the_first(bna) # for every subject, leaves in df just the first visit on a given day
@@ -59,4 +61,9 @@ final_date(bna, clinical)
 visits = clinical.merge(bna, how = 'inner', on = ['just_date', 'subject']) 
 save_df_to_csv(visits)
  
- 
+x = visits[['subject', 'EEG NUMBER', 'visit', 'age', 'gender']]
+#BIOMARKERS:
+#* Asymmetry alpha power (pair_mean_power_abs) fronal lobe
+#* Asymmetry beta power (pair_mean_power_abs) central lobe
+
+y = visits[['subject', 'HDRS']]
