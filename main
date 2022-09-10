@@ -1,10 +1,16 @@
 from pathlib import Path
 from time import strftime
-#import sklearn
+import sklearn
+from sklearn.linear_model import LinearRegression, KNeighborsRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+from math import sqrt
 import pandas as pd
 import numpy as np
 import datetime as dt
 import warnings
+
+
 warnings.simplefilter("ignore", UserWarning)
 #import the_module_that_warns
 
@@ -60,10 +66,43 @@ unite_same_day_visits_to_the_first(bna) # for every subject, leaves in df just t
 final_date(bna, clinical) 
 visits = clinical.merge(bna, how = 'inner', on = ['just_date', 'subject']) 
 save_df_to_csv(visits)
- 
-x = visits[['subject', 'EEG NUMBER', 'visit', 'age', 'gender']]
+
+#
+# do for all models:
+#
+
+# features:
+# X = visits['age?', 'gender?', baseline feature 1, baseline feture 2...]]
+
+
+#
+# do for linear regression:
+# 
+
+## HDRS_drop ('response to treatment')= {100 - (HDRS week 6/ HDRS week 1) * 100}  - represetns the number of % the HDRS score lost in 6 weeks.
+# in particular, HDRS_drop < 0 means HDRS score is greater in week 6 than it was in week 1 (more depression)     
+# y = visits['HDRS_drop']
+
+# X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=0.2)
+#lr = LinearRegreassion() 
+#lr.fit(X_train, y_train)
+#pred = lr.predict(X_test)
+
+
+
+#
+# do for classification:
+#
+
+# y = visits['HDRS_drop_level'] # level is one of 3 labels: ,'respone','non-response',and 'remission'
+# X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=0.2)
+#knn = KNeighborsRegressor(n_neighbors=3) 3 for response, non- response and remission
+#knn.fit(X_train, y_train)
+#pred = knn.predict(X_test)
+#mae = mean_absolute_error(y_test, pred) , to compute the mean absolute error (optional)
+
+
 #BIOMARKERS:
 #* Asymmetry alpha power (pair_mean_power_abs) fronal lobe
 #* Asymmetry beta power (pair_mean_power_abs) central lobe
-
-y = visits[['subject', 'HDRS']]
+#* ...
