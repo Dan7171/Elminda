@@ -1,7 +1,7 @@
 from pathlib import Path
 from time import strftime
 import sklearn
-from sklearn.linear_model import LinearRegression, KNeighborsRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from math import sqrt
@@ -24,25 +24,29 @@ def reformat_dates(df):
     addcol = df.pop('just_date')
     df.insert(2, 'just_date', addcol)
  
-#for a subject with more than one EEG recording in the same day, keep only the first one
+
 def unite_same_day_visits_to_the_first(df):
+    """ for a subject with more than one EEG recording in the same day, keep only the first one"""
     df = df.sort_values(by=['subject','date'])
     df = df.reset_index()
     df = df.drop_duplicates(subset=['subject', 'just_date'], keep='first') #removes rows(visits) who has same subject with the same date, but leaves the first appearance
     df = df.reset_index()
 
 
-def final_date(df1, df2): 
-    #create final_date column for each df to be used in the merge of the two 
-    #use a random t until Ofir gives us an answer
+def final_date_merge(df1, df2): 
+    """merging df1 and df2 by subject and creates a final_date column for each visit """
     t = 2 #t is the valid maximun difference in days
     df = df1.merge(df2, how = 'inner',on = ['subject'])
+
     df['final_date'] =[d1 if time_difference(d1,d2)<= t else "remove" for d1,d2 in zip(df['just_date_x'],df['just_date_y'])] 
     df = df[df['final_date']!= 'remove']
     df = df.reset_index()
+    print(df)
+
     df = df.drop_duplicates(subset=['final_date','subject'], keep='first')
+    #print(df)
     df = df.reset_index()
-     
+    return df 
  
 def time_difference(d1_str, d2_str): #v
     d1 = dt.datetime.strptime(d1_str, "%d/%m/%Y")
@@ -55,17 +59,42 @@ def save_df_to_csv(df):
     path = Path()
     df.to_csv('visits.csv',index = False)
 
+
+def get_percantage_change(df, column_name):
+    
+    df = df.sort_values(by=['subject'])
+    df = df[['HDRS-17']]
+    df = df.reset_index()
+    grouped_by_sub = df.groupby(['subject'])
+    first_scores = grouped_by_sub.first()
+    last_scores = grouped_by_sub.last()
+    #print(grouped_by_sub)
+    #print(first_scores)
+    #print(last_scores)
+
+def print_groups_by_sub():
+    grouped_subject = visits.groupby(['subject'])
+    for name, group in grouped_subject:
+        print(name)
+        print(group[['visit','final_date']])
+
+  
+
 #*** MAIN PART : ***
 
 bna = pd.read_csv('BNA_data.csv')
-clinical = pd.read_csv("Clinical_data.csv") #Hebrew is reversed in the dataframe
-print(clinical.columns)
+clinical = pd.read_csv("Clinical_data_hebrew.csv") #Hebrew is reversed in the dataframe
 reformat_dates(bna)
 reformat_dates(clinical)
-unite_same_day_visits_to_the_first(bna) # for every subject, leaves in df just the first visit on a given day
-final_date(bna, clinical) 
-visits = clinical.merge(bna, how = 'inner', on = ['just_date', 'subject']) 
+unite_same_day_visits_to_the_first(bna)  
+visits = final_date_merge(bna, clinical) 
 save_df_to_csv(visits)
+
+ 
+
+
+
+#get_percantage_change(visits,'HDRS-17')
 
 #
 # do for all models:
