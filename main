@@ -1,7 +1,8 @@
+from itertools import groupby
 from pathlib import Path
 from time import strftime
 import sklearn
-from sklearn.linear_model import LinearRegression, KNeighborsRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from math import sqrt
@@ -24,25 +25,26 @@ def reformat_dates(df):
     addcol = df.pop('just_date')
     df.insert(2, 'just_date', addcol)
  
-#for a subject with more than one EEG recording in the same day, keep only the first one
+
 def unite_same_day_visits_to_the_first(df):
+    """ for a subject with more than one EEG recording in the same day, keep only the first one"""
     df = df.sort_values(by=['subject','date'])
     df = df.reset_index()
     df = df.drop_duplicates(subset=['subject', 'just_date'], keep='first') #removes rows(visits) who has same subject with the same date, but leaves the first appearance
     df = df.reset_index()
 
 
-def final_date(df1, df2): 
-    #create final_date column for each df to be used in the merge of the two 
-    #use a random t until Ofir gives us an answer
+def final_date_merge(df1, df2): 
+    """merging df1 and df2 by subject and creates a final_date column for each visit """
     t = 2 #t is the valid maximun difference in days
     df = df1.merge(df2, how = 'inner',on = ['subject'])
+
     df['final_date'] =[d1 if time_difference(d1,d2)<= t else "remove" for d1,d2 in zip(df['just_date_x'],df['just_date_y'])] 
     df = df[df['final_date']!= 'remove']
     df = df.reset_index()
     df = df.drop_duplicates(subset=['final_date','subject'], keep='first')
     df = df.reset_index()
-     
+    return df 
  
 def time_difference(d1_str, d2_str): #v
     d1 = dt.datetime.strptime(d1_str, "%d/%m/%Y")
@@ -55,18 +57,124 @@ def save_df_to_csv(df):
     path = Path()
     df.to_csv('visits.csv',index = False)
 
+
+def get_percantage_change(df, column_name):
+    pass
+     
+
+def group_by(df,c): #visits.groupby(['subject']), #df.groupby([c])
+    """ equivalent to df.groupby([c]), I wrote this func for exampling the outputs!
+
+    given a df (visits) returns all of the sub dfs, where each sub df belongs so one subjects:
+    sub44
+        visit  final_date
+    46      1  22/08/2016
+    47      2  29/08/2016
+    48      3  09/05/2016
+    49      5  20/09/2016
+    50      6  27/09/2016
+    sub83
+        visit  final_date  HDRS-17
+    53      1  12/11/2016     23.0
+    54      2  18/12/2016     22.0
+    55      3  25/12/2016     21.0
+    56      4  01/01/2017     21.0
+    57      5  01/08/2017     20.0
+    58      6  16/01/2017     14.0
+    .
+    .
+    ."""
+    return df.groupby([c])
+    
+ 
+
+def get_group_by_name_from_all_groups(groups_by_coulumn,desired_group_name):
+    """first getting all athe groups by 'subject'picks particulary the group of the subject passed in subject_id
+    example: input = (groups_by_coulumn=visits.groupby['subject] (all groups by subjects),desired_group_name='sub83') -> output = :
+    
+    output = sub83,
+    sub83
+        visit  final_date  HDRS-17 .....
+    53      1  12/11/2016     23.0
+    54      2  18/12/2016     22.0
+    55      3  25/12/2016     21.0
+    56      4  01/01/2017     21.0
+    57      5  01/08/2017     20.0
+    58      6  16/01/2017     14.0"""
+    
+    for name, group in groups_by_coulumn: #name is group name('subject'), group is all its df
+        if name == desired_group_name:
+            return group # a df
+            #print(name)
+            #print(group[['visit','final_date']]) #see output example in ducumentation
+
+def get_subject_first_visit_val_in_column_c(subject_id,d,c,):
+    group = d[subject_id] # O(1)
+    #group.sort_values(by='visit')
+    return group.iloc[0][c]
+    
+def get_subject_last_visit_val_in_column_c(subject_id,d,c):
+    group = d[subject_id] # O(1)
+    #group.sort_values(by='visit')
+    return group.iloc[len(group)-1][c]
+
+def print_interesting_valus_by_subject_grouping(df):
+    for name,group in group_by(df,'subject'):
+    #print(visits[name]['HDRS-17'])
+        print(name)
+        print(group[['visit','final_date','HDRS-17']])
+        print(group[['first_visit_HDRS-17','last_visit_HDRS-17','change_HDRS-17']])
+
+def get_subjects_with_increase_in_HDRS_or_with_zero_start_HDRS(visits):
+    """returning all the strange subjects that has HDRS-17 == 0 in the
+    first visit or had a positive percantage change in change_HDRS-17 (increased depression)"""
+    
+    strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == "None" or float(visits.iloc[i]['change_HDRS-17']) > 0))
+    return strange_subjects
+    
+def get_subject_change_rate_in_column_c(subject,d,c):
+    """Given a subject (value in the column 'subject') and a dictionary of key= 'subject' val = this 'subject' df,
+    returns the value of the change rate from before to after, in the column named c,
+    where the before change is the value of c in the first visit of this subject and
+    after change is the value of c in the last visit of this subject."""
+    subject_df = d[subject]
+    before_change_val = subject_df.iloc[0][c] #the value of the 
+    after_change_val = subject_df.iloc[len(subject_df)-1][c]
+    if before_change_val != 0:
+        percantage_change = ((after_change_val - before_change_val) / before_change_val) * 100
+    else:
+        percantage_change =  "None"
+    return percantage_change
+    
+
 #*** MAIN PART : ***
 
 bna = pd.read_csv('BNA_data.csv')
-clinical = pd.read_csv("Clinical_data.csv") #Hebrew is reversed in the dataframe
-print(clinical.columns)
+clinical = pd.read_csv("Clinical_data_hebrew.csv") #Hebrew is reversed in the dataframe
 reformat_dates(bna)
 reformat_dates(clinical)
-unite_same_day_visits_to_the_first(bna) # for every subject, leaves in df just the first visit on a given day
-final_date(bna, clinical) 
-visits = clinical.merge(bna, how = 'inner', on = ['just_date', 'subject']) 
+unite_same_day_visits_to_the_first(bna)  
+visits = final_date_merge(bna, clinical) 
 save_df_to_csv(visits)
 
+
+visits_grouped_by_subject = group_by(visits,'subject') # all groups, same as df.groupby(['subject])
+subject_to_subject_group = {}
+for name,group in visits_grouped_by_subject: # map all groups by key= name= subject, val = group = subject's df (time complexity reasons)
+    group.sort_values(by='visit')
+    subject_to_subject_group[name] = group
+visits['first_visit_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_first_visit_val_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
+visits['last_visit_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_last_visit_val_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
+visits['change_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
+visits['HDRS-17_change_rate'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c(subject,d=subject_to_subject_group,c= 'HDRS-17'))
+
+print_interesting_valus_by_subject_grouping(visits)
+strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == "None" or float(visits.iloc[i]['change_HDRS-17']) > 0))
+print(strange_subjects)
+
+
+
+#get_percantage_change(visits,'HDRS-17')
 #
 # do for all models:
 #
