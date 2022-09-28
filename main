@@ -209,6 +209,33 @@ print(strange_subjects)
 #pred = knn.predict(X_test)
 #mae = mean_absolute_error(y_test, pred) , to compute the mean absolute error (optional)
 
+""" 
+IMBALANCED DATA SET --- WE DO THIS ONLY IF OUR ML ISN'T RELIABLE
+Below is an example for undersampling - a technique to help the ML
+be more reliable when the data isn't ideally distributed,
+when "data" is the name of the final df we're working on:
+
+shuffled = data.sample(frac=1,random_state=4)
+
+# Put all the "smaller group" (which is the group that takes up the majority of the data) in a separate dataset.
+smaller_group = shuffled.loc[shuffled['Class'] == 1]
+
+#Randomly select n observations from the majority class
+bigger_group = shuffled.loc[shuffled['column'] == 0].sample(n=n,random_state=42)
+
+# Concatenate both dataframes again
+normalized = pd.concat([smaller_group, bigger_group])
+
+#plot the dataset after the undersampling, this part might not be the same for us
+plt.figure(figsize=(8, 8))
+sns.countplot('Class', data=normalized)
+plt.title('Balanced Classes')
+plt.show()
+
+"""
+
+
+
 
 #BIOMARKERS:
 #* Asymmetry alpha power (pair_mean_power_abs) fronal lobe
