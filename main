@@ -1,7 +1,10 @@
 from itertools import groupby
 from pathlib import Path
+from statistics import linear_regression
 from time import strftime
 import sklearn
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import chi2
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
@@ -118,18 +121,25 @@ def get_subject_last_visit_val_in_column_c(subject_id,d,c):
     #group.sort_values(by='visit')
     return group.iloc[len(group)-1][c]
 
-def print_interesting_valus_by_subject_grouping(df):
+def print_interesting_values_by_subject_grouping(df,d):
+    """adding desired priniting columns which are unneccessary in model (like first_visit_HDRS-17),
+    printing frouping by subject of all wanted featured and then deleting the added unnccessary ones"""
+    add_HDRS_first_last_columns(visits,d) #adding 'first_visit_HDRS-17','last_visit_HDRS-17'  columns to visits
+    #after addign unnccessary columns: print groups by subject:
     for name,group in group_by(df,'subject'):
-    #print(visits[name]['HDRS-17'])
         print(name)
         print(group[['visit','final_date','HDRS-17']])
         print(group[['first_visit_HDRS-17','last_visit_HDRS-17','change_HDRS-17']])
+    #remove unneccessary
+    df.drop(columns=['first_visit_HDRS-17','last_visit_HDRS-17'])
+
+
 
 def get_subjects_with_increase_in_HDRS_or_with_zero_start_HDRS(visits):
     """returning all the strange subjects that has HDRS-17 == 0 in the
     first visit or had a positive percantage change in change_HDRS-17 (increased depression)"""
     
-    strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == "None" or float(visits.iloc[i]['change_HDRS-17']) > 0))
+    strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == None or float(visits.iloc[i]['change_HDRS-17']) > 0))
     return strange_subjects
     
 def get_subject_change_rate_in_column_c(subject,d,c):
@@ -143,10 +153,28 @@ def get_subject_change_rate_in_column_c(subject,d,c):
     if before_change_val != 0:
         percantage_change = ((after_change_val - before_change_val) / before_change_val) * 100
     else:
-        percantage_change =  "None"
+        percantage_change =  None
     return percantage_change
-    
 
+def add_HDRS_first_last_columns(df,d):
+    """adding the mentioned colums columns which er are interested at about HDRS-17 to the df"""
+    df['first_visit_HDRS-17'] = df['subject'].apply(lambda subject: get_subject_first_visit_val_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
+    df['last_visit_HDRS-17'] = df['subject'].apply(lambda subject: get_subject_last_visit_val_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
+
+
+def select_features_by_univariate_selection(df): 
+    "by chi square, anova test, or corellation coefficient(pearson or spirman)?"
+    "we will use the method selectKbest- which finds the K best features in terms of maximun corellation with the y variant"    
+    pass
+def seletct_features_by_feature_importance(df): #all 3 technices are usefull for small data sets only. not usefull for us.
+    "part of the wraper methods"
+    "USEFUL ONLY IN SMALL DATA SETS"
+    "by wraper method. Some of them with no statistical tasks, but only one of 3 mechanismes:"
+    "forward selection/backward elimination/recursion feature elimination. forward selection- start with no features, adding only highly corellated with y features to the model.  backward elimination: start with all of features, find the least significant feature on y, if its p val >0.05 drop it else leave it,"
+    "and move on to the next feature untill end of features"
+    pass
+def select_features_by_correlation_matrix_heat_map(df):
+    pass
 #*** MAIN PART : ***
 
 bna = pd.read_csv('BNA_data.csv')
@@ -158,40 +186,68 @@ visits = final_date_merge(bna, clinical)
 save_df_to_csv(visits)
 
 
-visits_grouped_by_subject = group_by(visits,'subject') # all groups, same as df.groupby(['subject])
+visits_grouped_by_subject = group_by(visits,'subject') # all groups by subject, same as df.groupby(['subject])
 subject_to_subject_group = {}
-for name,group in visits_grouped_by_subject: # map all groups by key= name= subject, val = group = subject's df (time complexity reasons)
+for name,group in visits_grouped_by_subject: # map all groups by key= name= subject, val = group = subject's df (for time complexity reasons)
     group.sort_values(by='visit')
     subject_to_subject_group[name] = group
-visits['first_visit_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_first_visit_val_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
-visits['last_visit_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_last_visit_val_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
 visits['change_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
-visits['HDRS-17_change_rate'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c(subject,d=subject_to_subject_group,c= 'HDRS-17'))
 
-print_interesting_valus_by_subject_grouping(visits)
-strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == "None" or float(visits.iloc[i]['change_HDRS-17']) > 0))
+
+
+#***READ:***
+# all code above this line works properly. we have a new column of the improvement percantage in
+# HDRS-17 named 'change_HDRS-17'.
+
+# print the lines below to see what are the results  by now:
+
+#just printing some interesting values for each subject:
+print("INTERESTING VALUES FOR EACH SUBJECT")
+print_interesting_values_by_subject_grouping(visits,subject_to_subject_group)
+#subjects without improvement or with no first visit value of HDRS-17:
+print("STRANGE SUBJECTS")
+strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == "None" or float(visits.iloc[i]['change_HDRS-17']) > 0)) 
 print(strange_subjects)
 
 
+# ***READ:***
+#From this point the bug starts. my goal is to remove all colums with string/date values (to leave only numbers because we need numbers only for the
+# models training inside each coulumn). I try somehow to drop all the values which are strings and dates with the function get_dummies (maybe it's not what it supposed to do actually) but
+#everytime I do that, it is adding the combination of 'final_date' X one of it's dates as a new column (around 1200 more columns)
+#print the columns to see example. it also happens after I do visits_no_dates = visits.drop(['final_dates'])
+#and printing its columns. same problem of adding columns
 
-#get_percantage_change(visits,'HDRS-17')
-#
-# do for all models:
-#
+print("visits columns \n" , visits.columns) 
+visits_dummies = pd.get_dummies(visits) #problem: get_dummies adding redudnat colums (example: 'final_date_29/8/2017 as a column. run (print(visit_model.coulums()) to see) looks like it combing final date with it's values))
+visits_no_dummies = visits.drop(columns = visits_dummies)
+print("visits without dummies \n" , visits.columns) 
+print(visits_no_dummies.columns)
+#maybe will help: https://stackoverflow.com/questions/50176096/removing-redundant-columns-when-using-get-dummies
 
-# features:
-# X = visits['age?', 'gender?', baseline feature 1, baseline feture 2...]]
+#print(visits_model.columns)
+# visits_model = pd.get_dummies(visits_model)
+# print(visits_model.columns)
+
+
+#***READ:***
+#after debuging, the following lines should work properly
+
+#X = visits_model.drop(columns= ['change_HDRS-17'])
+#y = visits_model['change_HDRS-17']
+#X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=0.2)
+
+#best_features = SelectKBest(score_func=chi2,k=10)
+#fit = best_features.fit(X,y) #when running fit, probllems caused by get_dummies start to effect
+
+
+
 
 
 #
 # do for linear regression:
 # 
+ 
 
-## HDRS_drop ('response to treatment')= {100 - (HDRS week 6/ HDRS week 1) * 100}  - represetns the number of % the HDRS score lost in 6 weeks.
-# in particular, HDRS_drop < 0 means HDRS score is greater in week 6 than it was in week 1 (more depression)     
-# y = visits['HDRS_drop']
-
-# X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=0.2)
 #lr = LinearRegreassion() 
 #lr.fit(X_train, y_train)
 #pred = lr.predict(X_test)
