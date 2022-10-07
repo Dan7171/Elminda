@@ -1,9 +1,12 @@
+import array
 from itertools import groupby
 from pathlib import Path
-#from statistics import linear_regression
 from time import strftime
+from matplotlib import pyplot as plt, test
+from pyparsing import trace_parse_action
+
 import sklearn
-from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.feature_selection import SelectKBest, f_classif, f_regression
 from sklearn.feature_selection import chi2
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
@@ -12,9 +15,10 @@ from math import sqrt
 import pandas as pd
 import numpy as np
 import datetime as dt
+import seaborn as sns
 import warnings
-
-
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import r2_score
 warnings.simplefilter("ignore", UserWarning)
 #import the_module_that_warns
 
@@ -30,8 +34,8 @@ def reformat_dates(df):
  
 
 def unite_same_day_visits_to_the_first(df):
-    """ for a subject with more than one EEG recording in the same day, keep only the first one"""
-    df = df.sort_values(by=['subject','date'])
+    """ for a subject with more than one EEG recording in the same day, keep only the first visit"""
+    df = df.sort_values(by=['subject','date']) #sorting visits by subject, and then by date
     df = df.reset_index()
     df = df.drop_duplicates(subset=['subject', 'just_date'], keep='first') #removes rows(visits) who has same subject with the same date, but leaves the first appearance
     df = df.reset_index()
@@ -40,8 +44,11 @@ def unite_same_day_visits_to_the_first(df):
 def final_date_merge(df1, df2): 
     """merging df1 and df2 by subject and creates a final_date column for each visit """
     t = 2 #t is the valid maximun difference in days
-    df = df1.merge(df2, how = 'inner',on = ['subject'])
-
+    df = df1.merge(df2, how = 'inner',on = ['subject']) #leaving in the df all pairs with the same subject
+    # Considering only visits where the bna date of visit and the clinical date of visit have at most
+    # t days between them, and uniting them with one 'final_date'.Note that the function is droping duplicates and keeping
+    # only the first appearance of a final date, in order to prevent duplication of 'fianl_date's of visits.
+    #we want each visit (a pair of clinical visit and bna visit) to have one final_date
     df['final_date'] =[d1 if time_difference(d1,d2)<= t else "remove" for d1,d2 in zip(df['just_date_x'],df['just_date_y'])] 
     df = df[df['final_date']!= 'remove']
     df = df.reset_index()
@@ -151,7 +158,7 @@ def get_subject_change_rate_in_column_c(subject,d,c):
     before_change_val = subject_df.iloc[0][c] #the value of the 
     after_change_val = subject_df.iloc[len(subject_df)-1][c]
     if before_change_val != 0:
-        percantage_change = ((after_change_val - before_change_val) / before_change_val) * 100
+        percantage_change = ((after_change_val - before_change_val) / before_change_val) * 100 
     else:
         percantage_change =  None
     return percantage_change
@@ -175,64 +182,129 @@ def seletct_features_by_feature_importance(df): #all 3 technices are usefull for
     pass
 def select_features_by_correlation_matrix_heat_map(df):
     pass
+def change_gender_column_to_numeric_binary(df,gender_col_name):
+    """convert gender: 'male'/'female' -> 0/1 (so we can use it numericaly) under the couln named gender_col_name"""
+
+    df[gender_col_name] = df[gender_col_name].apply(lambda x: 1 if x == "Male" else 0)
+    for col in df.columns:
+        if col != "subject":
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    return df
+def keep_first_visit_only(df):
+    df.sort_values(by='visit')
+    df = df.groupby('subject', as_index=False).first() #keeps only the first visit of each subject   
+    return df
+
+def drop_cols(df,cols_to_drop:set):
+    """Given a set 'cols_to_drop' of column names, removing the columns in it from the df and returns it"""
+    
+    df = df[[c for c in df.columns if c not in cols_to_drop]] # allowing only columns we weren't marked to remove
+    return df
+def get_set_without_items(s:set,items:list):
+    """Given a set s and a list of items in it, returns a new set without those items"""
+    for item in items:
+        if item in s:
+            s.remove(item)
+    return s
+
+def print_corr_mat(df):
+    shapes = (20,20)
+    plt.figure(figsize=shapes)
+    corr = df.corr()
+    sns.heatmap(corr,annot=True,cmap=plt.cm.CMRmap_r)
+    plt.show()
+
+
 #*** MAIN PART : ***
 
-bna = pd.read_csv('BNA_data.csv')
-clinical = pd.read_csv("Clinical_data.csv") #Hebrew is reversed in the dataframe
-reformat_dates(bna)
+#PART A: Prepare data for work:
+bna = pd.read_csv('BNA_data.csv') 
+clinical = pd.read_csv("Clinical_data_hebrew.csv") #Hebrew is reversed in the dataframe
+reformat_dates(bna)  
 reformat_dates(clinical)
 unite_same_day_visits_to_the_first(bna)  
+#merge theh two data frames (bna and clinical) by 'subject' and 'final_date' of visit
 visits = final_date_merge(bna, clinical) 
-save_df_to_csv("visits", visits)
 
-
+#create a dictionary of key = 'subject' to val = all the df values belong to it (for time complexity reasons):
 visits_grouped_by_subject = group_by(visits,'subject') # all groups by subject, same as df.groupby(['subject])
 subject_to_subject_group = {}
 for name,group in visits_grouped_by_subject: # map all groups by key= name= subject, val = group = subject's df (for time complexity reasons)
     group.sort_values(by='visit')
     subject_to_subject_group[name] = group
+
+#PART B: pick a model: (we picked linear regression)
+
+#PART C: pick a 'y' to predict and add it to the df
+# preparing linear regression 'y' vector: ('change_HDRS-17') 
 visits['change_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
 
+#PART D: generate 'X' vector, by dropping out columns and rows we can't or don't want to rely on when predicting:
 
-#SOME INTERESTING VALUES TO LOOK AT:
-"""
-just printing some interesting values for each subject:
-print("INTERESTING VALUES FOR EACH SUBJECT")
-print_interesting_values_by_subject_grouping(visits,subject_to_subject_group)
-subjects without improvement or with no first visit value of HDRS-17:
-print("STRANGE SUBJECTS")
-strange_subjects = set(visits.iloc[i]['subject'] for i in range(len(visits)) if (visits.iloc[i]['change_HDRS-17'] == "None" or float(visits.iloc[i]['change_HDRS-17']) > 0)) 
-print(strange_subjects)
-"""
+# preparing linear regression 'X' vector:
+visits_linear_reg = visits
 
-visits_model = visits #just saving the df without any changes
-#converting all relevant data to numbers for the model and removing non-relevant data:
-visits_model['gender'] = visits_model['gender'].apply(lambda x: 1 if x == "Male" else 0)
-for col in visits_model.columns:
-    if col != "subject":
-        visits_model[col] = pd.to_numeric(visits_model[col], errors='coerce')
-visits_model = visits_model.groupby('subject', as_index=False).first() #keeps only the first visit of each subject
+#step 1: keep first visit of each subject and only it (as 'baseline' 'X' values)
+visits_linear_reg = keep_first_visit_only(visits_linear_reg) 
 
-print(visits_model.head(10))
-visits_model = visits_model.drop(visits_model.iloc[:, 1394:1500], axis=1)
-visits_model = visits_model.drop(visits_model.iloc[:, 4:9], axis=1)
-visits_model = visits_model.drop(visits_model.iloc[:, 0:3], axis=1)
-print(visits_model.head(5))
-#visits_model = visits_model.drop(columns=['level_0', 'index', 'just_date_x', 'taskData.elm_id', 'final_date', 'subject'])
 
-#for the actual machine learning model:
-X = visits_model.drop(columns= ['change_HDRS-17'])
-Y = visits_model['change_HDRS-17']
+#step 2: change 'gender' from 'male','female' to 1,0 (linear regression demands numeric values):
+visits_linear_reg = change_gender_column_to_numeric_binary(visits_linear_reg,'gender')# turning 'female' to 0 and 'male' to 1 under 'gender' column:
+
+#step 3: remove non numerical and 'noisy' columns (like dates, visit numbers etc..) from the df:
+#prepare one big set of them:
+#3.1 pick the 'noisy' and non numerical columns:
+print("before step 3, shape =", visits_linear_reg.shape)
+clinical_col_set = set(list(clinical.columns.values))
+
+allowed_cols_clinical = ['Weight in Kg','height in cm ','BMI','Smoking?']
+restricted_cols_clinical = get_set_without_items(clinical_col_set, items = allowed_cols_clinical)
+
+restricted_cols_bna = set(['taskData.elm_id','EEG NUMBER','visit','date','ageV1'])
+restricted_cols_visits =set(['subject', 'level_0','index','date_x','date_y','just_date_x','just_date_y','final_date',])
+cols_to_drop = restricted_cols_visits.union(restricted_cols_bna.union(restricted_cols_clinical)) #the set
+#3.2: drop them:
+visits_linear_reg = drop_cols(visits_linear_reg, cols_to_drop) 
+print("after step 3, shape =", visits_linear_reg.shape)
+# parts E-H: splitting, feature selection, training, predicting and testing
+
+X = visits_linear_reg.drop(columns= ['change_HDRS-17'])
+y = visits_linear_reg['change_HDRS-17']
 X.fillna(0, inplace = True)
-Y.fillna(0, inplace = True)
-X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.2)
+y.fillna(0, inplace = True)
 
-best_features = SelectKBest(score_func=f_classif,k=10) #need to read about f_classicif score function
-#we tried chi2 but it didn't work on negative vectors
-fit = best_features.fit(X, Y) 
+ 
+#PART E: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
+#for the actual machine learning model:
+
+select = SelectKBest(score_func=f_regression,k=40)
+X_new = select.fit_transform(X,y)
+cols = select.get_support(indices=True)
+X_new = X.iloc[:,cols]
+print(X_new)
+# PART F: split data for training and testing
+X_train, X_test, y_train, y_test = train_test_split(X_new, y, test_size=0.2)
+# PART G: train model with fit
+ 
+regressor = LinearRegression()
+trained_model_reg = regressor.fit(X_train, y_train) 
 print("finished running with no bugs")
+# PART H: test your model on 
 
+#y_pred = trained_model_reg.predict(X_test)
 
+r2_score = regressor.score(X_test,y_test)
+print("r2_score=", r2_score)
+print(r2_score*100,'%')
+y_pred = regressor.predict(X_test)
+print("r2_score=", sklearn.metrics.r2_score(y_test, y_pred))
+print(r2_score*100,'%')
+
+# plt.scatter(X_train, y_train, color='g') 
+# plt.show()
+# plt.plot(X_test, y_pred,color='k') 
+#print(trained_model_reg.score(X_train, y_train))
+#print(test_model_reg.score(X_test, y_train))
 
 
 
