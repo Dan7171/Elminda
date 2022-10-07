@@ -157,6 +157,8 @@ def get_subject_change_rate_in_column_c(subject,d,c):
     subject_df = d[subject]
     before_change_val = subject_df.iloc[0][c] #the value of the 
     after_change_val = subject_df.iloc[len(subject_df)-1][c]
+    #print([subject,"visit1 = ", subject_df.iloc[0][c], "visit2= ", subject_df.iloc[1][c] if len(subject_df.index)>1 else None])
+    
     if before_change_val != 0:
         percantage_change = ((after_change_val - before_change_val) / before_change_val) * 100 
     else:
@@ -232,13 +234,13 @@ subject_to_subject_group = {}
 for name,group in visits_grouped_by_subject: # map all groups by key= name= subject, val = group = subject's df (for time complexity reasons)
     group.sort_values(by='visit')
     subject_to_subject_group[name] = group
-
+    
 #PART B: pick a model: (we picked linear regression)
 
 #PART C: pick a 'y' to predict and add it to the df
 # preparing linear regression 'y' vector: ('change_HDRS-17') 
 visits['change_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c(subject,d=subject_to_subject_group,c='HDRS-17'))
-
+print(visits[['subject','visit','change_HDRS-17']])
 #PART D: generate 'X' vector, by dropping out columns and rows we can't or don't want to rely on when predicting:
 
 # preparing linear regression 'X' vector:
@@ -277,15 +279,16 @@ y.fillna(0, inplace = True)
 #PART E: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
 #for the actual machine learning model:
 
-select = SelectKBest(score_func=f_regression,k=40)
+select = SelectKBest(score_func=f_regression,k=1)
 X_new = select.fit_transform(X,y)
 cols = select.get_support(indices=True)
 X_new = X.iloc[:,cols]
 print(X_new)
+print(y)
 # PART F: split data for training and testing
 X_train, X_test, y_train, y_test = train_test_split(X_new, y, test_size=0.2)
 # PART G: train model with fit
- 
+
 regressor = LinearRegression()
 trained_model_reg = regressor.fit(X_train, y_train) 
 print("finished running with no bugs")
@@ -300,24 +303,9 @@ y_pred = regressor.predict(X_test)
 print("r2_score=", sklearn.metrics.r2_score(y_test, y_pred))
 print(r2_score*100,'%')
 
-# plt.scatter(X_train, y_train, color='g') 
-# plt.show()
-# plt.plot(X_test, y_pred,color='k') 
-#print(trained_model_reg.score(X_train, y_train))
-#print(test_model_reg.score(X_test, y_train))
 
 
-
-#
-# do for linear regression:
-# 
  
-
-#lr = LinearRegreassion() 
-#lr.fit(X_train, y_train)
-#pred = lr.predict(X_test)
-
-
 
 #
 # do for classification:
