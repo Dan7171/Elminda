@@ -3,13 +3,8 @@ from heapq import merge
 from itertools import groupby
 from locale import format_string
 from pathlib import Path
-from statistics import correlation
-from time import strftime
 from matplotlib import pyplot as plt, test
-from pyparsing import trace_parse_action
-
 from sklearn.feature_selection import SelectKBest, f_classif, f_regression
-from sklearn.feature_selection import chi2
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
@@ -212,7 +207,8 @@ def get_set_without_items(s:set,items:list):
 
 def print_conclusions(model_name,predicted_value,score,data_size,features_number):
     """Given a tested model, supplying conclusion of the train and prediction"""
-
+    print("______________________________________________________________")
+    print("*** CONCLUSIONS OF MODEL TRAINING AND TESTING: ***")
     print("MODEL NAME: ", model_name)
     print("DATA SIZE (TOTAL OBSERVATIONS NUMBER- TRAIN + TEST): ", data_size)
     print("FEATURES NUMBER: ", features_number) #size of X vector
@@ -224,6 +220,7 @@ def print_conclusions(model_name,predicted_value,score,data_size,features_number
             print(f"SCORE: {score}, too low (the closer to 1, the better the model is)")
         else:
             print("SCORE = ", score)
+    print("______________________________________________________________")
 
  
 
@@ -231,25 +228,52 @@ def get_electrods_change_visit2_visit3(visits,bna,subject_to_subject_group):
     """Given visits and bna df, returns a df that for each visit i, column j is the change rate in percents
     in between the second to the third visit for the subject with that visit i, in col j  that
     belongs to bna numeric data (electrod values)"""
-    bna_numeric = bna._get_numeric_data()
+    bna_numeric = bna._get_numeric_data() #only the eeg numeric data, exclude date columns and 'subject' for example
     new_cols_list =[] 
-    print(bna_numeric)
     for col_name in bna_numeric.columns.values:
         new_col_name = col_name + "_change_visit2_visit3"
+        # calculte for each column from bna_numeric. a new column that represents the change in it
+        # from visit 2 to visit 3, for each subject:
         new_col = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c=col_name,i=1,j=2)) #i = 1 means visit 2, j=2 means visit 3
-        new_col.rename(new_col_name, inplace=True)
-        new_cols_list.append(new_col)
-    all_new_cols = pd.concat(new_cols_list, axis=1, ignore_index=False)
+        new_col.rename(new_col_name, inplace=True) #rename new_col to the new name
+        new_cols_list.append(new_col) # add the new col to the list of columns
+    all_new_cols = pd.concat(new_cols_list, axis=1, ignore_index=False) #concat all new change_visit2_visit3 columns to one df
     return all_new_cols
 
+
+def get_subject_end_of_treatment_state_in_column_c(subject_df,c):
+    """Given a df of a particular subject(in sorted order of visits) and a column name c, returning the end-of-expirement value
+    for this subject in column c """
+    num_of_visits = len(subject_df)
+    ans = subject_df.iloc[num_of_visits-1][c] # the value of the last visit in the column named c
+    return ans
+
+def convert_HDRS_17_score_to_class(HDRS_17_score):
+    """Given an HDRS-17 score, returning a proper class to it. note that the classes computed 
+    according to page 1 scoring part at this article https://dcf.psychiatry.ufl.edu/files/2011/05/HAMILTON-DEPRESSION.pdf
+    """
+    ans = 0
+    if 0 <= HDRS_17_score <= 7:
+        ans = "remission" #also called normal state
+    elif 7 < HDRS_17_score < 20:
+        ans = "minor_symptoms" # between no depression to major depression
+    elif 20 <= HDRS_17_score:
+        ans = "major_symptoms" # majot depression, need clinical intervention
+    else:
+        print("please enter a numeric non negative HDRS_17_score ")
+    print(HDRS_17_score,ans)
+
+    return ans
+
 def lr(visits,subject_to_subject_group,bna,clinical,k_select_best_k):
+    visits_lr = visits.copy()
     #PART A: pick a 'y' to predict and add it to the df
     # preparing linear regression 'y' vector: ('change_HDRS-17') 
-    visits['change_HDRS-17'] = visits['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
-    visits = visits[visits['change_HDRS-17']!= 0] #drop out subjects with no change (meaning they have problems in data)
+    visits_lr['change_HDRS-17'] = visits_lr['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
+    visits_lr = visits_lr[visits_lr['change_HDRS-17']!= 0] #drop out subjects with no change (meaning they have problems in data)
     #PART B: generate 'X' vector, by dropping out columns and rows we can't or don't want to rely on when predicting:
     # preparing linear regression 'X' vector:
-    visits_lr = visits
+    
 
     #step 1: keep first visit of each subject and only it (as 'baseline' 'X' values)
     # for example, for 40 subjects, we will remain with 40 visits (rows) only
@@ -277,7 +301,6 @@ def lr(visits,subject_to_subject_group,bna,clinical,k_select_best_k):
 
     X = visits_lr.drop(columns= ['change_HDRS-17'])
     y = visits_lr['change_HDRS-17']
-
     X.fillna(0, inplace = True)
     y.fillna(0, inplace = True)
 
@@ -293,8 +316,10 @@ def lr(visits,subject_to_subject_group,bna,clinical,k_select_best_k):
     X_new_y = X_new.join(y) # best k features and y (in order to comput corellation between each one of them and the y)
     abs_correlations = abs(X_new_y.corr()['change_HDRS-17'])
     abs_correlations.rename('abs_corr_with_change_HDRS-17', inplace=True)
+    print("top k highest features in corellation to 'change_HDRS-17 and their abs correllations:")
     print(abs_correlations)
-
+    
+    # create correlations hit map :
     fig_dims = (10,5)
     fig,ax = plt.subplots(figsize=fig_dims)
     sns.heatmap(X_new_y.corr(),ax=ax)
@@ -307,6 +332,7 @@ def lr(visits,subject_to_subject_group,bna,clinical,k_select_best_k):
 
     regressor = LinearRegression()
     trained_model_reg = regressor.fit(X_train, y_train) 
+    
 
     # PART H: test your model on 
     # r**2 = [1- (ss(res)-ss(total)]. ss(res) = sum of squares between y_pred (regression line ys for X_test) minus y_test, ss(total)= sum of squares between average y_train minus y_test
@@ -318,19 +344,20 @@ def lr(visits,subject_to_subject_group,bna,clinical,k_select_best_k):
     plt.show()
 
 def knn(visits,subject_to_subject_group,bna,clinical,k_select_best_k,k_knn):
-    pass
-    # 
-    # do for classification:
-    #
+    """Training and reporting scoring results for the knn model"""
 
-    # y = visits['HDRS_drop_level'] # level is one of 3 labels: ,'respone','non-response',and 'remission'
-    # X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=0.2)
-    #knn = KNeighborsRegressor(n_neighbors=3) 3 for response, non- response and remission
-    #knn.fit(X_train, y_train)
-    #pred = knn.predict(X_test)
-    #mae = mean_absolute_error(y_test, pred) , to compute the mean absolute error (optional)
-
-
+    visits_knn = visits.copy()
+    #adding the column: 'end_of_treatment_class_HDRS-17' with a value of one of 3:
+    #remission, minor_symptoms, major_symptoms (given based on the last visit hdrs_17)
+    visits_knn['end_of_treatment_class_HDRS-17'] = visits_knn['subject'].apply(lambda subject:  convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17')))
+    visits_knn = keep_first_visit_only(visits_knn) # keeping only the first visit for each subject
+    print(visits_knn) 
+    #left to do:
+    # 1. to remove from the df (visits_knn) subjects with less than 7 visits (now even subjects with 1 visit are in)
+    # 2. to select best k features, after we did a reaserch to see what is the proper score_func to our data and knn model (in linear regression we used score_func=f_regression)
+    # 3. reduce dimensions to that k 
+    # 4. train reduced to k model and calculate it's score
+    
 def main(model_name:str,bna_path:str,clinical_path:str,k_select_best_k=None, k_knn=None):
     """Given a model name from {'lr'/'knn'...},two paths to clinical and bna data csv files,
     optional k for select_best_k, optional k for knn , training and testing the model in model_name on the arguments """
@@ -354,12 +381,13 @@ def main(model_name:str,bna_path:str,clinical_path:str,k_select_best_k=None, k_k
     #A.4 add for each bna column in visits (columns of electrodes), the change rate in percents between visit 2 (before first treatment) to visit 3 (after first treatment)
      
     #THE NEXT CALL IS THE RIGHT WAY TO GENERATE THE NEW DF, BUT SUPER HEAVY (A FEW MINS):
-    #bna_columns_change_visit2_visit3 = get_electrode_visit2_visit3_change(visits,bna,subject_to_subject_group)
+    
+    #bna_columns_change_visit2_visit3 = get_electrods_visit2_visit3_change(visits,bna,subject_to_subject_group)
+    
     #INSTEAD, I SAVED THE DF AFTER GENERATING IT ONCE, SO IT WON'T TAKE THAT LONG TO PRODUCE IT EVERY TIME:
     bna_columns_change_visit2_visit3 = pd.read_csv('bna_cols_change_from_visit2_to_visit3.csv')
     #save_df_to_csv('bna_cols_change_from_visit2_to_visit3',all_new_cols)
     visits = visits.join(bna_columns_change_visit2_visit3)
-    
     #PART B: pick a model and train it on the data: 
     if model_name == "lr":
         lr(visits,subject_to_subject_group,bna,clinical,k_select_best_k)
