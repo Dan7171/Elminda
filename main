@@ -1,5 +1,0 @@
-import models_runner
-bna_path = 'BNA_data.csv'
-clinical_path = "Clinical_data_hebrew.csv"
-#models_runner.main("lr",bna_path,clinical_path,k_select_best_k=4)
-models_runner.main("knn",bna_path,clinical_path,1,1)
