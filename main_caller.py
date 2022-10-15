@@ -11,6 +11,3 @@ X_lr = subjects_X.copy()
 #models_runner.lr(subject_to_subject_group, X_lr, k_select_k_best=10,y_name='change_HDRS-17')
 X_knn = subjects_X.copy()
 models_runner.knn(subject_to_subject_group, X_knn, k_select_k_best = 20,k_knn = 3,y_name ='end_of_treatment_class_HDRS-17' )
-
-#Maya is pushing this just to make sure she knows how to push 
-#into her own branch now, because so far it doesn't work
