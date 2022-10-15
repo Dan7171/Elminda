@@ -212,4 +212,4 @@ def generate_X(bna_path, clinical_path):
     # Important: note that 'subject' is the initial shape of the 'X' vector (before reducing dimensions with select k best
     # inside the model itself. The 'y' predicted value is generated for this X vector inside the model too).
     subjects = get_predictive_features(visits,clinical)
-    return (subjects, subject_to_subject_group)
+    return subjects, subject_to_subject_group

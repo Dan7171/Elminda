@@ -32,14 +32,14 @@ simplefilter(action='ignore', category=FutureWarning)
  
 #Wasn't sure if we need these or what to write about them, leaving them as is for now:
 def select_features_by_univariate_selection(df): 
-    "by chi square, anova test, or corellation coefficient(pearson or spirman)?"
-    "we will use the method selectKbest- which finds the K best features in terms of maximun corellation with the y variant"    
+    "by chi square, anova test, or correlation coefficient(pearson or spirman)?"
+    "we will use the method selectKbest- which finds the K best features in terms of maximun correlation with the y variant"    
     pass
 def select_features_by_feature_importance(df): #all 3 technices are usefull for small data sets only. not usefull for us.
     "part of the wraper methods"
     "USEFUL ONLY IN SMALL DATA SETS"
     "by wraper method. Some of them with no statistical tasks, but only one of 3 mechanismes:"
-    "forward selection/backward elimination/recursion feature elimination. forward selection- start with no features, adding only highly corellated with y features to the model.  backward elimination: start with all of features, find the least significant feature on y, if its p val >0.05 drop it else leave it,"
+    "forward selection/backward elimination/recursion feature elimination. forward selection- start with no features, adding only highly correlated with y features to the model.  backward elimination: start with all of features, find the least significant feature on y, if its p val >0.05 drop it else leave it,"
     "and move on to the next feature untill end of features"
     pass
  
@@ -99,11 +99,24 @@ def filling(df):
     """ Fill NaN cells with zeroes for numeric models. This function was created to prevent
     code duplications in multiple places """
     df.fillna(0, inplace = True)
+
+def selector_func(X, y, k_select_k_best, funcname):
+    # Step 1: selector will get us the k features with the highest correlation with 'y'
+    selector = SelectKBest(score_func=funcname,k=k_select_k_best)
+    # Step 2: get the best k features from X without the columns names
+    X_new = selector.fit_transform(X,y)
+    # Step 3: get the indices of the k best features' columns
+    cols = selector.get_support(indices=True)
+    # Step 4: get the actual names of the k best features, and join them into one df to compute correlation between them
+    X_new = X.iloc[:,cols]
+    X_new_y = X_new.join(y)
+    return X_new, X_new_y
  
 def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     """ Training and reporting scoring results for the linear regression model """
 
     # Step 1: create the y column for the dataframe, then remove it and the subject column to get the final X columns
+    # so that at the end of this step we'll have X and y ready
     if y_name == 'change_HDRS-17':
         subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
         subjects_X = subjects_X[subjects_X[y_name]!= 0] #drop out subjects with no change (meaning there's a problems with the data)
@@ -116,87 +129,73 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     filling(X)
     filling(y)
     
-    #Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
-    #for the actual machine learning model:
-    #save X_new, without names of columns:
-    selector = SelectKBest(score_func=f_regression,k=k_select_k_best) #'best' = have the highest correllation with 'y' comparing to others.
-    X_new = selector.fit_transform(X,y) # best k features from X, without names
-    #save X_new, but with names of columns:
-    cols = selector.get_support(indices=True)
-    X_new = X.iloc[:,cols] #best k features of X, with their original names
-    X_new_y = X_new.join(y) # best k features and y (in order to comput corellation between each one of them and the y)
+    # Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
+    X_new, X_new_y = selector_func(X, y, k_select_k_best, f_regression)
     
-    # not a step, but saving and showing plots and corellations:
+    # This is where I tried to make the MRMR work but the statistics are not as good as without it:
+    # aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
+    # X_new1 = X[[c for c in X.columns if c in aftermrmr]]
+    # X_new_y1 = X_new1.join(y)
+    # abs_correlations1 = abs(X_new_y1.corr()[y_name])
+    # abs_correlations1.rename('abs_corr_with_y', inplace=True)
+    # print("top k highest features in correlation to y and their abs correlations1:")
+    # print(abs_correlations1)
+
+    # not a step, but saving and showing plots and correlations:
     abs_correlations = abs(X_new_y.corr()[y_name])
     abs_correlations.rename('abs_corr_with_y', inplace=True)
-    print("top k highest features in corellation to y and their abs correllations:")
+    print("top k highest features in correlation to y and their abs correlations:")
     print(abs_correlations)
     fig_dims = (10,5)
     fig,ax = plt.subplots(figsize=fig_dims)
-    sns.heatmap(X_new_y.corr(),ax=ax)
+    sns.heatmap(X_new_y.corr(),ax=ax) #create correlations hit map
     plt.draw()
 
-    # Step 4: WE need to add here some solution for the minimun redundadce part:
-    #... COMPLETE HERE...
-    # Step 5: split data for training and testing
-    # create correlations hit map :
+    # Step 3: split data for training and testing
     X_train, X_test, y_train, y_test = train_test_split(X_new, y, test_size=0.2)
-    # Step 6:: train model with fit
+
+    # Step 4: train model with fit
     regressor = LinearRegression()
     trained_model = regressor.fit(X_train, y_train) 
-    # Step 7: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
-    r2_score = regressor.score(X_test,y_test)  # doing both prediction and r2 calculation
+
+    # Step 5: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
+    r2_score = regressor.score(X_test,y_test) #doing both prediction and r2 calculation
     print_conclusions(model_name= "lr",K_best_features=X_new.columns.values, y_name = y_name,score=r2_score,data_size = X_new.shape[0],features_number = X_new.shape[1])
     print("finished running with no bugs")
-    plt.show() #enteryin an infinite while
+    plt.show() #entering an infinite while loop
 
   
 def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
-    """Training and reporting scoring results for the knn model"""
-    #Step 1: adding the y column:
+    """ Training and reporting scoring results for the knn model """
+
+    # Step 1: create the y column for the dataframe, then remove it and the subject column to get the final X columns
+    # so that at the end of this step we'll have X and y ready
+    # Note that the same comment about this step that is written in the lr function is also relevant here
     if y_name == 'end_of_treatment_class_HDRS-17':
-        #Step 1: build y:
         subjects_X['change_HDRS-17'] = subjects_X['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
         d =  create_dict_by_column_c(subjects_X,'subject')
-        #y:
         subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17')))
-        #print(subjects_X) 
-    #Step 2: remove y column and 'subject' from 'X'
-    X = subjects_X.drop(columns= ['subject',y_name]) # at the moment we drop subject right before starting training the model. this is not the most beaufitul design and it caused beacuse we work with 'subejct_to_subject_group' dictionary. 
-    # we can somehow prevent this ugly code by maybe by changing the df 'visits' (subjects_X in this case) to a new df with: row == subject (without cols like subject number or name which is redundant) and and columns will be best k features (relevant for any model) and the y column
+        X = subjects_X.drop(columns= ['subject',y_name]) 
     y = subjects_X[y_name]
     filling(X)
     filling(y)
-    #Step 3: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
-    #for the actual machine learning model:
-    #save X_new, without names of columns:
-    selector = SelectKBest(score_func=f_classif,k=k_select_k_best) #'best' = have the highest correllation with 'y' comparing to others.
-    X_new = selector.fit_transform(X,y) # best k features from X, without names
-    #save X_new, but with names of columns:
-    cols = selector.get_support(indices=True)
-    X_new = X.iloc[:,cols] #best k features of X, with their original names
-    X_new_y = X_new.join(y) # best k features and y (in order to comput corellation between each one of them and the y)
-    #print(X_new_y)
 
-
+    #Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
+    #X_new, X_new_y = selector_func(X, y, k_select_k_best, f_classif) 
     # MAYA'S WORKING ON MRMR HERE
-    # Step 4: WE need to add here some solution for the minimun redundadce part:
-    # use mrmr classification
-    # selector = mrmr_classif(X, y, K = k_select_k_best)
-    # X_new = selector.fit_transform(X,y) # best k features from X, without names
-    # #save X_new, but with names of columns:
-    # cols = selector.get_support(indices=True)
-    # X_new = X.iloc[:,cols] #best k features of X, with their original names
-    # X_new_y = X_new.join(y) # best k features and y (in order to comput corellation between each one of them and the y)
+    aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
+    X_new = X[[c for c in X.columns if c in aftermrmr]]
+    X_new_y = X_new.join(y)
 
-
-    # Step 5: split data for training and testing
+    # Step 3: split data for training and testing
     X_train, X_test, y_train, y_test = train_test_split(X_new, y, test_size=0.2)
-    # Step 6:: train model with fit
+
+    # Step 4: train model with fit
     classifier = KNeighborsClassifier(n_neighbors=k_knn)
     trained_model= classifier.fit(X_train, y_train) 
-    # Step 7: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
-    knn_score = classifier.score(X_test,y_test) #Return the mean accuracy on the given test data and labels.
+
+    # Step 5: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
+    knn_score = classifier.score(X_test,y_test) #return the mean accuracy on the given test data and labels
     y_prediction = trained_model.predict(X_test)
     print("prediction of model values: \n", y_prediction)
     print("real class values (y_test): \n ", y_test)
