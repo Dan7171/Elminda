@@ -136,20 +136,17 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     # aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
     # X_new = X[[c for c in X.columns if c in aftermrmr]]
     # X_new_y = X_new.join(y)
-    # abs_correlations1 = abs(X_new_y.corr()[y_name])
-    # abs_correlations1.rename('abs_corr_with_y', inplace=True)
-    # print("top k highest features in correlation to y and their abs correlations1:")
-    # print(abs_correlations1)
 
     # not a step, but saving and showing plots and correlations:
+    #AFTER TESTING YOU NEED THESE PRINTS:
     abs_correlations = abs(X_new_y.corr()[y_name])
     abs_correlations.rename('abs_corr_with_y', inplace=True)
-    print("top k highest features in correlation to y and their abs correlations:")
-    print(abs_correlations)
-    fig_dims = (10,5)
-    fig,ax = plt.subplots(figsize=fig_dims)
-    sns.heatmap(X_new_y.corr(),ax=ax) #create correlations hit map
-    plt.draw()
+    # print("top k highest features in correlation to y and their abs correlations:")
+    # print(abs_correlations)
+    # fig_dims = (10,5)
+    # fig,ax = plt.subplots(figsize=fig_dims)
+    # sns.heatmap(X_new_y.corr(),ax=ax) #create correlations hit map
+    # plt.draw()
 
     # Step 3: split data for training and testing
     X_train, X_test, y_train, y_test = train_test_split(X_new, y, test_size=0.2)
@@ -160,9 +157,13 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
 
     # Step 5: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
     r2_score = regressor.score(X_test,y_test) #doing both prediction and r2 calculation
-    print_conclusions(model_name= "lr",K_best_features=X_new.columns.values, y_name = y_name,score=r2_score,data_size = X_new.shape[0],features_number = X_new.shape[1])
-    print("finished running with no bugs")
-    plt.show() #entering an infinite while loop
+    #AFTER TESTING YOU NEED THESE PRINTS:
+    # print_conclusions(model_name= "lr",K_best_features=X_new.columns.values, y_name = y_name,score=r2_score,data_size = X_new.shape[0],features_number = X_new.shape[1])
+    # print("finished running with no bugs")
+    #plt.show() #entering an infinite while loop
+    
+    #this next return is only for testing:
+    return r2_score
 
   
 def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
@@ -174,18 +175,18 @@ def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
     if y_name == 'end_of_treatment_class_HDRS-17':
         subjects_X['change_HDRS-17'] = subjects_X['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
         d =  create_dict_by_column_c(subjects_X,'subject')
-        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17')), False)
+        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17'), False))
         X = subjects_X.drop(columns= ['subject',y_name]) 
     y = subjects_X[y_name]
     filling(X)
     filling(y)
 
     #Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
-    #X_new, X_new_y = selector_func(X, y, k_select_k_best, f_classif) 
+    X_new, X_new_y = selector_func(X, y, k_select_k_best, f_classif) 
     # MAYA'S WORKING ON MRMR HERE
-    aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
-    X_new = X[[c for c in X.columns if c in aftermrmr]]
-    X_new_y = X_new.join(y)
+    # aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
+    # X_new = X[[c for c in X.columns if c in aftermrmr]]
+    # X_new_y = X_new.join(y)
 
     # Step 3: split data for training and testing
     X_train, X_test, y_train, y_test = train_test_split(X_new, y, test_size=0.2)
@@ -197,10 +198,13 @@ def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
     # Step 5: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
     knn_score = classifier.score(X_test,y_test) #return the mean accuracy on the given test data and labels
     y_prediction = trained_model.predict(X_test)
+    #AFTER TESTING YOU NEED THESE PRINTS:
     print("prediction of model values: \n", y_prediction)
     print("real class values (y_test): \n ", y_test)
     print_conclusions(model_name= "knn", K_best_features= X_new.columns.values,y_name = y_name, score=knn_score,data_size = X_new.shape[0],features_number = X_new.shape[1])
     print("finished running with no bugs")
+
+    return knn_score
    
 
 def dtree(subject_to_subject_group, subjects_X, k_select_k_best, y_name):
@@ -212,7 +216,7 @@ def dtree(subject_to_subject_group, subjects_X, k_select_k_best, y_name):
     if y_name == 'response_to_treatment':
         subjects_X['change_HDRS-17'] = subjects_X['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
         d =  create_dict_by_column_c(subjects_X,'subject')
-        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17')), True)
+        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17'), True))
         X = subjects_X.drop(columns= ['subject',y_name]) 
     y = subjects_X[y_name]
     filling(X)
