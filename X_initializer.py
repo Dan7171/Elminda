@@ -112,7 +112,7 @@ def get_electrodes_change_visit2_visit3(visits, bna, subject_to_subject_group):
     """ Given visits and BNA df, returns a df that for each subject i and column j calculates the percentage change
     in between the second to the third visit for the subject for column j that belongs to BNA numeric data (electrod values) """
 
-    bna_numeric = bna._get_numeric_data() #only the eeg numeric data, exclude date columns and 'subject' for example
+    bna_numeric = bna._get_numeric_data() #only the EEG numeric data, exclude date columns and 'subject' for example
     new_cols_list =[] 
     for col_name in bna_numeric.columns.values:
         new_col_name = col_name + "_change_visit2_visit3"

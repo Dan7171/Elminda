@@ -50,9 +50,9 @@ def print_conclusions(model_name,K_best_features,y_name, score, data_size,featur
     print("*** CONCLUSIONS OF MODEL TRAINING AND TESTING: ***\n")
     print("MODEL NAME:", model_name)
     print("DATA SIZE (TOTAL OBSERVATIONS NUMBER: TRAIN + TEST):", data_size)
-    print("'X' BEST K FEATURES NUMBER:", features_number) #the size of X vector
+    print("'X' BEST K FEATURES NUMBER:", features_number)
     print("'X' BEST K FEATURES:",'\n',K_best_features)
-    print("PREDICTED 'y' VALUE:", y_name) #the 'y' column name
+    print("PREDICTED 'y' VALUE:", y_name)
 
     if model_name == "lr":
         #Score function in lr is 'r2_score' (r squared).
@@ -79,14 +79,14 @@ def get_subject_end_of_treatment_state_in_column_c(subject_df,c):
     ans = subject_df.iloc[num_of_visits-1][c] #the value of the last visit in the column named c
     return ans
 
-def convert_HDRS_17_score_to_class(HDRS_17_score,HDRS_17_change_rate):
+def convert_HDRS_17_score_to_class(HDRS_17_score,HDRS_17_change_rate, dtree):
     """ The subjects will be divided into three clusters according to their HDRS-17 score, such that
     if their final HDRS-17 score is 7 or less they'll be considered 'remission', if the rate change
     between their first and last visits shows more than 50% improvement they'll be considered 'responsive',
     otherwise we will consider them 'non-responsive' """
 
     ans = None
-    if 0 <= HDRS_17_score <= 7:
+    if 0 <= HDRS_17_score <= 7 and dtree == False:
         ans = "Remission" #also called normal state
     else:
         if HDRS_17_change_rate < -50:
@@ -134,9 +134,9 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     
     # This is where I tried to make the MRMR work but the statistics are not as good as without it:
     # aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
-    # X_new1 = X[[c for c in X.columns if c in aftermrmr]]
-    # X_new_y1 = X_new1.join(y)
-    # abs_correlations1 = abs(X_new_y1.corr()[y_name])
+    # X_new = X[[c for c in X.columns if c in aftermrmr]]
+    # X_new_y = X_new.join(y)
+    # abs_correlations1 = abs(X_new_y.corr()[y_name])
     # abs_correlations1.rename('abs_corr_with_y', inplace=True)
     # print("top k highest features in correlation to y and their abs correlations1:")
     # print(abs_correlations1)
@@ -166,7 +166,7 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
 
   
 def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
-    """ Training and reporting scoring results for the knn model """
+    """ Training and reporting scoring results for the K nearest neighbors model """
 
     # Step 1: create the y column for the dataframe, then remove it and the subject column to get the final X columns
     # so that at the end of this step we'll have X and y ready
@@ -174,7 +174,7 @@ def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
     if y_name == 'end_of_treatment_class_HDRS-17':
         subjects_X['change_HDRS-17'] = subjects_X['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
         d =  create_dict_by_column_c(subjects_X,'subject')
-        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17')))
+        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17')), False)
         X = subjects_X.drop(columns= ['subject',y_name]) 
     y = subjects_X[y_name]
     filling(X)
@@ -203,3 +203,17 @@ def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
     print("finished running with no bugs")
    
 
+def dtree(subject_to_subject_group, subjects_X, k_select_k_best, y_name):
+    """ Training and reporting scoring results for the decision tree model """
+
+    # Step 1: create the y column for the dataframe, then remove it and the subject column to get the final X columns
+    # so that at the end of this step we'll have X and y ready
+    # Note that the same comment about this step that is written in the lr function is also relevant here
+    if y_name == 'response_to_treatment':
+        subjects_X['change_HDRS-17'] = subjects_X['subject'].apply(lambda subject: get_subject_change_rate_in_column_c_from_visit_i_to_visit_j(subject_to_subject_group[subject],c='HDRS-17',i=0,j=len(subject_to_subject_group[subject])-1))
+        d =  create_dict_by_column_c(subjects_X,'subject')
+        subjects_X[y_name] = subjects_X['subject'].apply(lambda subject: convert_HDRS_17_score_to_class(get_subject_end_of_treatment_state_in_column_c(subject_to_subject_group[subject],c='HDRS-17'),get_subject_end_of_treatment_state_in_column_c(d[subject],c='change_HDRS-17')), True)
+        X = subjects_X.drop(columns= ['subject',y_name]) 
+    y = subjects_X[y_name]
+    filling(X)
+    filling(y)
