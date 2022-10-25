@@ -132,14 +132,16 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     filling(y)
     
     # Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
-    X_new, X_new_y = selector_func(X, y, k_select_k_best, f_regression)
+    # X_new, X_new_y = selector_func(X, y, k_select_k_best, f_regression)
+    # ^without MRMR
     
     # this next part still isn't working, selected_cols comes back empty for some reason:
-    # selected_cols = mrmr_classif(X, y, k_select_k_best)
-    # print("this is aftermrmr:")
-    # print(selected_cols)
-    # X_new = X[[c for c in X.columns if c in selected_cols]]
-    # X_new_y = X_new.join(y)
+    selected_cols = mrmr_classif(X, y, k_select_k_best)
+    print("this is aftermrmr:")
+    print(selected_cols)
+    X_new = X[[c for c in X.columns if c in selected_cols]]
+    X_new_y = X_new.join(y)
+    # ^With MRMR
 
     # not a step, but saving and showing plots and correlations:
     #AFTER TESTING YOU NEED THESE PRINTS:
@@ -184,10 +186,9 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     r2_score = regressor.score(X_test,y_test) #doing both prediction and r2 calculation
 
     # Another way I found to check specificity
-    specificity = recall_score(y_test, y_train, pos_label=0)
+    # specificity = recall_score(y_test, y_train, pos_label=0)
     #AFTER TESTING YOU NEED THESE PRINTS:
     # print_conclusions(model_name= "lr",K_best_features=X_new.columns.values, y_name = y_name,score=r2_score,data_size = X_new.shape[0],features_number = X_new.shape[1])
-    print("Specificity score is", specificity)
     # print("finished running with no bugs")
     #plt.show() #entering an infinite while loop
     
