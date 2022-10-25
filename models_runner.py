@@ -16,7 +16,9 @@ import datetime as dt
 import seaborn as sns
 import warnings
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import recall_score
 from sklearn.metrics import r2_score
+from sklearn.metrics import confusion_matrix
 from sklearn.neighbors import kneighbors_graph
 from X_initializer import create_dict_by_column_c, get_subject_change_rate_in_column_c_from_visit_i_to_visit_j
 from mrmr import mrmr_classif
@@ -132,9 +134,11 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     # Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
     X_new, X_new_y = selector_func(X, y, k_select_k_best, f_regression)
     
-    # This is where I tried to make the MRMR work but the statistics are not as good as without it:
-    # aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
-    # X_new = X[[c for c in X.columns if c in aftermrmr]]
+    # this next part still isn't working, selected_cols comes back empty for some reason:
+    # selected_cols = mrmr_classif(X, y, k_select_k_best)
+    # print("this is aftermrmr:")
+    # print(selected_cols)
+    # X_new = X[[c for c in X.columns if c in selected_cols]]
     # X_new_y = X_new.join(y)
 
     # not a step, but saving and showing plots and correlations:
@@ -155,10 +159,35 @@ def lr(subject_to_subject_group,subjects_X,k_select_k_best, y_name):
     regressor = LinearRegression()
     trained_model = regressor.fit(X_train, y_train) 
 
+    # Trying to implement the specificity and sensitivity scores here, so far not working
+    # I couldn't really understand how to use this reference with our data:
+    # https://statinfer.com/204-4-2-calculating-sensitivity-and-specificity-in-python/
+    # Kept the accuracy score here to make sure it's the same as the one we print later, 
+    # that way we'll know that this try works
+
+    #I somehow need to send here as first variable the actual y's, tried different ways and not sure why it's not working
+    cm1 = confusion_matrix(X_test[y_name], y_test)
+    print('Confusion Matrix : \n', cm1)
+
+    total1=sum(sum(cm1))
+    #####from confusion matrix calculate accuracy
+    accuracy1=(cm1[0,0]+cm1[1,1])/total1
+    print ('Accuracy : ', accuracy1)
+
+    sensitivity1 = cm1[0,0]/(cm1[0,0]+cm1[0,1])
+    print('Sensitivity : ', sensitivity1 )
+
+    specificity1 = cm1[1,1]/(cm1[1,0]+cm1[1,1])
+    print('Specificity : ', specificity1)
+
     # Step 5: predict X_test y scores (y_prediction) and compare them to real y scores (y_test)
     r2_score = regressor.score(X_test,y_test) #doing both prediction and r2 calculation
+
+    # Another way I found to check specificity
+    specificity = recall_score(y_test, y_train, pos_label=0)
     #AFTER TESTING YOU NEED THESE PRINTS:
     # print_conclusions(model_name= "lr",K_best_features=X_new.columns.values, y_name = y_name,score=r2_score,data_size = X_new.shape[0],features_number = X_new.shape[1])
+    print("Specificity score is", specificity)
     # print("finished running with no bugs")
     #plt.show() #entering an infinite while loop
     
@@ -184,8 +213,8 @@ def knn(subject_to_subject_group,subjects_X,k_select_k_best,k_knn, y_name):
     #Step 2: select k best features from the 'X' vector, by the 'MRMR' (maximun relevancy, minimun redundancy) principal:
     X_new, X_new_y = selector_func(X, y, k_select_k_best, f_classif) 
     # MAYA'S WORKING ON MRMR HERE
-    # aftermrmr = mrmr_classif(X, y, K = k_select_k_best)
-    # X_new = X[[c for c in X.columns if c in aftermrmr]]
+    # selected_cols = mrmr_classif(X, y, k_select_k_best)
+    # X_new = X[[c for c in X.columns if c in selected_cols]]
     # X_new_y = X_new.join(y)
 
     # Step 3: split data for training and testing

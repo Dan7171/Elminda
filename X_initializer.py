@@ -159,10 +159,11 @@ def get_predictive_features(visits,clinical):
     # Note that the next block of code (the picking of columns to drop) is based on the clinical and BNA data frames
     # and their style of column names. When we get new data frames, we need to change this block too.
     clinical_col_set = set(list(clinical.columns.values))
-    allowed_cols_clinical = ['subject','Weight in Kg','height in cm ','BMI','Smoking?']
+    allowed_cols_clinical = ['subject', 'Weight in Kg','height in cm ','BMI','Smoking?']
     restricted_cols_clinical = get_set_without_items(clinical_col_set, items = allowed_cols_clinical)
-    restricted_cols_bna = set(['taskData.elm_id','EEG NUMBER','visit','date','ageV1'])
-    restricted_cols_visits =set(['level_0','index','date_x','date_y','just_date_x','just_date_y','final_date',])
+    restricted_cols_bna = set(['taskData.elm_id','visit','date','ageV1', 'EEG NUMBER'])
+    # maya: is 'EEG NUMBER' not a column in clinical data (and not bna?)
+    restricted_cols_visits =set(['level_0','index','date_x','date_y','just_date_x','just_date_y','final_date'])
 
     cols_to_drop = restricted_cols_visits.union(restricted_cols_bna.union(restricted_cols_clinical)) #the set
     # Step 3.b: drop those specific columns from the dataframe

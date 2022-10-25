@@ -9,7 +9,7 @@ from main_caller import mainCaller
 # clinical_g = clinical.sort_values(by=['subject'])
 # print(clinical_g)
 # #clinical_g.sort_values(by='visit')S
-# #print(clinical_g[['subject','visit']])
+# #print(clinical_g[]'subject','visit']])
 
 sum = 0
 for i in range(100):
